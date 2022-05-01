@@ -42,7 +42,7 @@ class ShopHelper:
             raw_card_info =  r.json()
             self.logger.info("ShopHelper.get_card_info", raw_card_info)
             
-            return CardInfo(raw_card_info["en_name"], raw_card_info["jp_name"], raw_card_info["set_code"], raw_card_info["img_url"])
+            return CardInfo(raw_card_info["en_name"], raw_card_info["jp_name"], raw_card_info["set_code"], raw_card_info["type"], raw_card_info["img_url"])
         except json.decoder.JSONDecodeError as err:
             self.logger.error("Finder.get_yuyutei_cards", err)
             raise SolomonAPIError("Encountered invalid response from Solomon API")

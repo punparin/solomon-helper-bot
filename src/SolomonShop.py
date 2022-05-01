@@ -137,7 +137,7 @@ class SolomonShop:
         self.SheetHandler.add_new_record(
             card_info.en_name,
             selected_card.rarity,
-            "",
+            card_info.type,
             selected_card.id,
             selected_card.jpy_price,
             selected_card.thb_price
