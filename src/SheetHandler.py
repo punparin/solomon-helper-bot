@@ -11,10 +11,10 @@ class SheetHandler:
         self.credentials = service_account.Credentials.from_service_account_file('credentials.json', scopes=self.scope)
         self.spreadsheet = build('sheets', 'v4', credentials=self.credentials)
 
-    def add_new_record(self, name, rarity, type, id, jpy_price, thb_price):
+    def add_new_record(self, name, rarity, type, id, condition, jpy_price, thb_price):
         range = "Sheet1!A:F"
         rows = [
-            [name, rarity, type, id, jpy_price, thb_price]
+            [name, rarity, type, id, condition, jpy_price, thb_price]
         ]
         body = {
             'majorDimension': 'ROWS',

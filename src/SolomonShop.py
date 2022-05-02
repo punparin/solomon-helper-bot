@@ -15,6 +15,7 @@ class SolomonShop:
         self.bot_id = os.getenv('BOT_ID')
         self.shopHelper = ShopHelper(logger)
         self.SheetHandler = SheetHandler(logger)
+        self.card_conditions = ["-", "99", "95", "90", "85", "80", "75", "70", "65", "60", "55", "50"]
 
     def get_embed_name(self, card_info):
         embed = Embed(title="Is this what you're looking for?", color=Colour.dark_teal())
@@ -40,10 +41,10 @@ class SolomonShop:
         embed.set_author(name=card.source, url=card_info.url, icon_url=self.get_source_icon(card.source))
         embed.set_thumbnail(url=card_info.img_url)
 
-        info = "ID: {0}\nRarity: {1}\nCondition: {2}\nPrice: ¥{3} (THB {4})".format(
+        info = "ID: {0}\nRarity: {1}\nCondition: {2}%\nPrice: ¥{3} (THB {4})".format(
             card.id,
             card.rarity,
-            card.condition,
+            card.own_condition,
             card.jpy_price,
             card.thb_price
         )
@@ -70,6 +71,18 @@ class SolomonShop:
                 embed.add_field(name="#" + str(i), value=info)
 
         return embed
+
+    def get_condition_options(self):
+        options = []
+
+        for condition in self.card_conditions:
+            option = SelectOption(label=condition, value=condition)
+            options.append(option)
+
+        return Select(
+                placeholder="What is the card's condition?",
+                options=options
+            )
 
     def get_card_options(self, card_info):
         options = []
@@ -124,13 +137,21 @@ class SolomonShop:
         card_options = self.get_card_options(card_info)
 
         await interaction.send("Select your card", components=[[card_options]])
-
         selected_interaction = await client.wait_for("select_option")
+
         selected_card = card_info.cards[int(selected_interaction.values[0])]
+        condition_options = self.get_condition_options()
+
+        await selected_interaction.send("Select your card's condition", components=[[condition_options]])
+        condition_interaction = await client.wait_for("select_option")
+
+        own_condition = condition_interaction.values[0]
+        selected_card.own_condition = own_condition
+
         selected_card_embed = self.get_selected_card_embed(card_info, selected_card)
         confirm_button = Button(label="Confirm", style="2", emoji="🥴", custom_id="confirm")
 
-        await selected_interaction.send(embed=selected_card_embed, components=[[confirm_button]])
+        await condition_interaction.send(embed=selected_card_embed, components=[[confirm_button]])
 
         confirm_interaction = await client.wait_for("button_click", check=lambda i: i.custom_id == "confirm")
         
@@ -139,6 +160,7 @@ class SolomonShop:
             selected_card.rarity,
             card_info.type,
             selected_card.id,
+            selected_card.own_condition,
             selected_card.jpy_price,
             selected_card.thb_price
             )
