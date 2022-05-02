@@ -28,6 +28,9 @@ class SolomonShop:
     def get_success_embed(self):
         return Embed(title="The new card has been updated to your stock", color=Colour.green())
 
+    def get_bye_embed(self):
+        return Embed(title="Bye bye 👋", color=Colour.lighter_grey())
+
     def get_failed_embed(self, message):
         return Embed(title=message, color=Colour.red())
 
@@ -112,11 +115,11 @@ class SolomonShop:
             await ctx.channel.send(embed=self.get_failed_embed("Card not found"))
             return
 
-        yes_button = Button(label="Yes", style="3", custom_id="yes")
+        yes_button = Button(label="Yes", style="3", emoji="👍🏼", custom_id="yes")
+        no_button = Button(label="No", style="4", emoji="👎🏼", custom_id="no")
 
-        # Check if name is correct
-        await ctx.channel.send(embed=name_embed, components=[[yes_button]])
-        interaction = await self.client.wait_for("button_click", check=lambda i: i.custom_id == "yes")
+        await ctx.channel.send(embed=name_embed, components=[[yes_button, no_button]])
+        interaction = await self.client.wait_for("button_click", check=lambda i: i.custom_id == "yes" or i.custom_id == "no")
 
         return interaction, card_info
 
@@ -151,13 +154,19 @@ class SolomonShop:
 
     async def confirm_card(self, interaction, card_info, selected_card):
         selected_card_embed = self.get_selected_card_embed(card_info, selected_card)
-        confirm_button = Button(label="Confirm", style="2", emoji="🥴", custom_id="confirm")
+        confirm_button = Button(label="Confirm", style="3", emoji="🥴", custom_id="confirm")
+        cancel_button = Button(label="Cancel", style="4", emoji="😬", custom_id="cancel")
 
-        await interaction.send(embed=selected_card_embed, components=[[confirm_button]])
+        await interaction.send(embed=selected_card_embed, components=[[confirm_button, cancel_button]])
 
-        confirm_interaction = await self.client.wait_for("button_click", check=lambda i: i.custom_id == "confirm")
+        confirm_interaction = await self.client.wait_for("button_click", check=lambda i: i.custom_id == "confirm" or i.custom_id == "cancel")
 
         return confirm_interaction
+
+    async def bye(self, interaction):
+        bye_embed = self.get_bye_embed()
+
+        await interaction.send(embed=bye_embed)
 
     async def update_sheet(self, interaction, card_info, selected_card):
         self.SheetHandler.add_new_record(
@@ -182,7 +191,15 @@ class SolomonShop:
             return
 
         desired_card_interaction, card_info = await self.select_desired_card(ctx)
+        if desired_card_interaction.custom_id == "no":
+            await self.bye(desired_card_interaction)
+            return
+
         selected_interaction, card_info, selected_card = await self.select_card(ctx, desired_card_interaction, card_info)
         condition_interaction, selected_card = await self.select_card_condition(selected_interaction, selected_card)
         confirm_interaction = await self.confirm_card(condition_interaction, card_info, selected_card)
+        if confirm_interaction.custom_id == "cancel":
+            await self.bye(confirm_interaction)
+            return
+
         success_interaction = await self.update_sheet(confirm_interaction, card_info, selected_card)
