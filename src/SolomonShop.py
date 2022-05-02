@@ -10,8 +10,9 @@ from SheetHandler import SheetHandler
 
 
 class SolomonShop:
-    def __init__(self, logger):
+    def __init__(self, logger, client):
         self.logger = logger
+        self.client = client
         self.bot_id = os.getenv('BOT_ID')
         self.shopHelper = ShopHelper(logger)
         self.SheetHandler = SheetHandler(logger)
@@ -102,13 +103,7 @@ class SolomonShop:
                 options=options
             )
 
-    async def process(self, client, ctx):
-        if ctx.author.id == self.bot_id:
-            return
-
-        if len(ctx.attachments) == 0:
-            return
-        
+    async def select_desired_card(self, ctx):
         img_url = ctx.attachments[0].url
         card_info = self.shopHelper.get_card_info(img_url)
         name_embed = self.get_embed_name(card_info)
@@ -117,17 +112,19 @@ class SolomonShop:
             await ctx.channel.send(embed=self.get_failed_embed("Card not found"))
             return
 
-        yuyutei_cards = self.shopHelper.get_cards("yuyutei", card_info.jp_name)
-        bigweb_cards = self.shopHelper.get_cards("bigweb", card_info.jp_name)
-        card_info = self.shopHelper.merge_card_info_with_cards_from_source(card_info, "yuyutei", yuyutei_cards)
-        card_info = self.shopHelper.merge_card_info_with_cards_from_source(card_info, "bigweb", bigweb_cards)
-
         yes_button = Button(label="Yes", style="3", custom_id="yes")
 
         # Check if name is correct
         await ctx.channel.send(embed=name_embed, components=[[yes_button]])
-        interaction = await client.wait_for("button_click", check=lambda i: i.custom_id == "yes")
+        interaction = await self.client.wait_for("button_click", check=lambda i: i.custom_id == "yes")
 
+        return interaction, card_info
+
+    async def select_card(self, ctx, interaction, card_info):
+        yuyutei_cards = self.shopHelper.get_cards("yuyutei", card_info.jp_name)
+        bigweb_cards = self.shopHelper.get_cards("bigweb", card_info.jp_name)
+        card_info = self.shopHelper.merge_card_info_with_cards_from_source(card_info, "yuyutei", yuyutei_cards)
+        card_info = self.shopHelper.merge_card_info_with_cards_from_source(card_info, "bigweb", bigweb_cards)
         yuyutei_embed = self.get_embed_from_card_info(card_info, "YUYUTEI", yuyutei_cards)
         bigweb_embed = self.get_embed_from_card_info(card_info, "Bigweb", bigweb_cards)
 
@@ -137,24 +134,32 @@ class SolomonShop:
         card_options = self.get_card_options(card_info)
 
         await interaction.send("Select your card", components=[[card_options]])
-        selected_interaction = await client.wait_for("select_option")
+        selected_interaction = await self.client.wait_for("select_option")
 
-        selected_card = card_info.cards[int(selected_interaction.values[0])]
+        return selected_interaction, card_info, card_info.cards[int(selected_interaction.values[0])]
+
+    async def select_card_condition(self, interaction, selected_card):
         condition_options = self.get_condition_options()
 
-        await selected_interaction.send("Select your card's condition", components=[[condition_options]])
-        condition_interaction = await client.wait_for("select_option")
+        await interaction.send("Select your card's condition", components=[[condition_options]])
+        condition_interaction = await self.client.wait_for("select_option")
 
         own_condition = condition_interaction.values[0]
         selected_card.own_condition = own_condition
 
+        return condition_interaction, selected_card
+
+    async def confirm_card(self, interaction, card_info, selected_card):
         selected_card_embed = self.get_selected_card_embed(card_info, selected_card)
         confirm_button = Button(label="Confirm", style="2", emoji="🥴", custom_id="confirm")
 
-        await condition_interaction.send(embed=selected_card_embed, components=[[confirm_button]])
+        await interaction.send(embed=selected_card_embed, components=[[confirm_button]])
 
-        confirm_interaction = await client.wait_for("button_click", check=lambda i: i.custom_id == "confirm")
-        
+        confirm_interaction = await self.client.wait_for("button_click", check=lambda i: i.custom_id == "confirm")
+
+        return confirm_interaction
+
+    async def update_sheet(self, interaction, card_info, selected_card):
         self.SheetHandler.add_new_record(
             card_info.en_name,
             selected_card.rarity,
@@ -165,4 +170,19 @@ class SolomonShop:
             selected_card.thb_price
             )
         
-        await confirm_interaction.send(embed=self.get_success_embed())
+        success_interaction = await interaction.send(embed=self.get_success_embed())
+
+        return success_interaction
+
+    async def process(self, ctx):
+        if ctx.author.id == self.bot_id:
+            return
+
+        if len(ctx.attachments) == 0:
+            return
+
+        desired_card_interaction, card_info = await self.select_desired_card(ctx)
+        selected_interaction, card_info, selected_card = await self.select_card(ctx, desired_card_interaction, card_info)
+        condition_interaction, selected_card = await self.select_card_condition(selected_interaction, selected_card)
+        confirm_interaction = await self.confirm_card(condition_interaction, card_info, selected_card)
+        success_interaction = await self.update_sheet(confirm_interaction, card_info, selected_card)

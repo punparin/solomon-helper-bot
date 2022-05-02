@@ -6,11 +6,11 @@ from Logger import Logger
 from SolomonShop import SolomonShop
 
 
-logger = Logger()
-solomonShop = SolomonShop(logger)
-
 client = commands.Bot("!")
 DiscordComponents(client)
+
+logger = Logger()
+solomonShop = SolomonShop(logger, client)
 
 @client.event
 async def on_ready():
@@ -18,7 +18,7 @@ async def on_ready():
 
 @client.event
 async def on_message(ctx):
-    await solomonShop.process(client, ctx)
+    await solomonShop.process(ctx)
 
 
 if __name__ == "__main__":
