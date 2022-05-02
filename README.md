@@ -29,6 +29,7 @@ BIGWEB_ICON=https://bigweb.co.jp/inc/space2.gif
 YUYUTEI_ICON=https://yuyu-tei.jp/img/ogp.jpg
 BOT_ID=<DISCORD_BOT_ID>
 SPREADSHEET_ID=<GOOGLE_SPREADSHEET_ID>
+SIMILARITY_THRESHOLD=0.5
 ```
 
 ### Running on local

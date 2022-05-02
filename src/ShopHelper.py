@@ -15,6 +15,7 @@ class ShopHelper:
     def __init__(self, logger):
         self.logger = logger
         self.index = "yugioh_cards"
+        self.similarity_threshold = os.environ["SIMILARITY_THRESHOLD"]
         self.solomon_api_endpoint = os.environ["SOLOMON_API_ENDPOINT"]
         self.solomon_vision_api_endpoint = os.environ["SOLOMON_VISION_API_ENDPOINT"]
         self.es_endpoint = os.environ["ELASTICSEARCH_ENDPOINT"]
@@ -27,22 +28,35 @@ class ShopHelper:
         except ValueError as err:
             return "-"
 
-    def get_card_info(self, img_url):
-        url = self.solomon_vision_api_endpoint + "/search-card"
+    def get_card_infos(self, img_url):
+        card_infos = []
+        url = self.solomon_vision_api_endpoint + "/search-cards"
         headers = {'Content-Type' : 'image/jpeg'}
+        params = {'similarity_threshold': self.similarity_threshold}
         img = requests.get(img_url, stream=True)
         image_stream = BytesIO(img.content)
 
         try:
-            r = requests.post(url, data=image_stream, headers=headers, verify=False)
+            r = requests.post(url, data=image_stream, headers=headers, params=params)
 
             if r.status_code != 201:
                 raise SolomonShopError("Encountered invalid request from Solomon Vision API")
 
-            raw_card_info =  r.json()
-            self.logger.info("ShopHelper.get_card_info", raw_card_info)
-            
-            return CardInfo(raw_card_info["en_name"], raw_card_info["jp_name"], raw_card_info["set_code"], raw_card_info["type"], raw_card_info["img_url"])
+            raw_card_infos =  r.json()
+            self.logger.info("ShopHelper.get_card_info", raw_card_infos)
+
+            for raw_card_info in raw_card_infos:
+                card_info = CardInfo(
+                    raw_card_info["en_name"],
+                    raw_card_info["jp_name"],
+                    raw_card_info["set_code"],
+                    raw_card_info["type"],
+                    raw_card_info["img_url"]
+                    )
+
+                card_infos.append(card_info)
+
+            return card_infos
         except json.decoder.JSONDecodeError as err:
             self.logger.error("Finder.get_yuyutei_cards", err)
             raise SolomonAPIError("Encountered invalid response from Solomon API")

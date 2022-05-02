@@ -107,21 +107,34 @@ class SolomonShop:
             )
 
     async def select_desired_card(self, ctx):
+        is_valid_card = False
+        interaction = None
         img_url = ctx.attachments[0].url
-        card_info = self.shopHelper.get_card_info(img_url)
-        name_embed = self.get_embed_name(card_info)
+        card_infos = self.shopHelper.get_card_infos(img_url)
 
-        if card_info.jp_name is None:
-            await ctx.channel.send(embed=self.get_failed_embed("Card not found"))
-            return
+        for card_info in card_infos:
+            if card_info.jp_name is None:
+                continue
 
-        yes_button = Button(label="Yes", style="3", emoji="👍🏼", custom_id="yes")
-        no_button = Button(label="No", style="4", emoji="👎🏼", custom_id="no")
+            is_valid_card = True
+            name_embed = self.get_embed_name(card_info)
+            yes_button = Button(label="Yes", style="3", emoji="👍🏼", custom_id="yes")
+            no_button = Button(label="No", style="4", emoji="👎🏼", custom_id="no")
 
-        await ctx.channel.send(embed=name_embed, components=[[yes_button, no_button]])
-        interaction = await self.client.wait_for("button_click", check=lambda i: i.custom_id == "yes" or i.custom_id == "no")
+            if interaction is None:
+                await ctx.channel.send(embed=name_embed, components=[[yes_button, no_button]])
+            else:
+                await interaction.send(embed=name_embed, components=[[yes_button, no_button]])
+            
+            interaction = await self.client.wait_for("button_click", timeout = 60, check=lambda i: i.custom_id == "yes" or i.custom_id == "no")
 
-        return interaction, card_info
+            if interaction.custom_id == "yes":
+                return interaction, card_info
+
+        if not is_valid_card:
+            await ctx.channel.send(embed=self.get_failed_embed("Japanese name not found"))
+
+        return interaction, card_infos
 
     async def select_card(self, ctx, interaction, card_info):
         yuyutei_cards = self.shopHelper.get_cards("yuyutei", card_info.jp_name)
@@ -191,9 +204,12 @@ class SolomonShop:
             return
 
         desired_card_interaction, card_info = await self.select_desired_card(ctx)
-        if desired_card_interaction.custom_id == "no":
+        if desired_card_interaction is None:
+            return
+        elif desired_card_interaction.custom_id == "no":
             await self.bye(desired_card_interaction)
             return
+        await desired_card_interaction.defer()
 
         selected_interaction, card_info, selected_card = await self.select_card(ctx, desired_card_interaction, card_info)
         condition_interaction, selected_card = await self.select_card_condition(selected_interaction, selected_card)
